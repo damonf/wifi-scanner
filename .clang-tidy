@@ -1,0 +1,31 @@
+Checks: >
+  -*,
+  boost-*,
+  modernize-*,
+  bugprone-*,
+  clang-analyzer-*,
+  concurrency-*,
+  cppcoreguidelines-*,
+  misc-*,
+  modernize-*,
+  performance-*,
+  readability-*,
+  -modernize-use-trailing-return-type,
+  -readability-identifier-length,
+  -misc-no-recursion,
+  -bugprone-easily-swappable-parameters,
+  -cppcoreguidelines-avoid-magic-numbers,
+  -readability-magic-numbers,
+  -performance-avoid-endl,
+  -cppcoreguidelines-pro-bounds-pointer-arithmetic,
+
+ExtraArgs: 
+  - '-std=c++23'
+  - '-D__cpp_concepts=202002'
+
+# ExtraArgs: [
+#   "-stdlib=libc++",
+#   "-I/usr/include/c++/v1",
+#   "-I/usr/include",
+#   "-resource-dir=/usr/lib/llvm-18/lib/clang/18"
+# ]
