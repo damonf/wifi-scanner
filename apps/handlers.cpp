@@ -1,22 +1,23 @@
 #include "handlers.hpp"
 #include "get_nl80211_cmd.hpp"
+#include "nl_msg_parsers.hpp"
+#include "bss_parser.hpp"
 
 #include <linux/genetlink.h>
 #include <linux/netlink.h>
 #include <linux/nl80211.h>
 #include <netlink/attr.h>
-#include <netlink/errno.h>
-#include <netlink/genl/genl.h>
 #include <netlink/handlers.h>
 #include <netlink/msg.h>
 
 #include <iostream>
 #include <format>
-#include <array>
+#include <string>
 
 namespace { 
 
     namespace ws = wifi_scanner;
+    namespace wp = wifi_scanner::parsers;
 
 }
 
@@ -53,51 +54,81 @@ int seq_handler(nl_msg *msg, void * /*arg*/) {
     return NL_OK;
 }
 
-int validation_handler(nl_msg *msg, void *arg) {
-    std::cout << "validation_callback() called.\n";
+int trigger_scan_handler(nl_msg *msg, void *arg) {
+    std::cout << "trigger_scan_handler() called.\n";
 
-    // Get the "Generic Netlink Header"
-    // https://www.infradead.org/~tgr/libnl/doc/api/group__msg.html#gae44a904bb40c8b5f5ff31539c21cfa5a
-    void* res = nlmsg_data(nlmsg_hdr(msg));
-    auto *gnlh = static_cast<genlmsghdr *>(res);
+    auto gen_hdr = wp::parse_genlmsghdr(msg);
 
-    auto *results = static_cast<TriggerScanResult *>(arg);
-
-    auto cmd_str = ws::get_nl80211_cmd(static_cast<nl80211_commands>(gnlh->cmd));
-    std::cout << std::format("Got command: {}.\n", cmd_str);
-
-    if (gnlh->cmd == NL80211_CMD_SCAN_ABORTED) {
-        results->done = true;
-        results->aborted = true;
-    } else if (gnlh->cmd == NL80211_CMD_NEW_SCAN_RESULTS) {
-        results->done = true;
-        results->aborted = false;
-    }
-
-    // Don't need to do this, just checking how it works.... Parse attributes
-    std::array<nlattr *, NL80211_ATTR_MAX + 1> attrs{};
-
-    // nlattr *attrs[NL80211_ATTR_MAX + 1];
-    int const err = nla_parse(
-        attrs.data()
-        , NL80211_ATTR_MAX
-        , genlmsg_attrdata(gnlh, 0)
-        , genlmsg_attrlen(gnlh, 0)
-        , nullptr
-    );
-    if (err < 0) {
-        std::cerr << "Failed to parse attributes: " << nl_geterror(err) << "\n";
+    if (!gen_hdr) {
+        std::cerr << "failed to create GenNlMsgHeader: " << gen_hdr.error() << "\n";
         return NL_SKIP;
     }
 
-    // Access attributes (example)
-    if (attrs[NL80211_ATTR_IFINDEX] != nullptr) {
-        auto ifindex = nla_get_u32(attrs[NL80211_ATTR_IFINDEX]);
-        std::cout << "Interface index: " << ifindex << "\n";
-    }
-    // if (attrs[NL80211_ATTR_IFNAME]) {
-    //     std::cout << "Interface name: " << nla_get_string(attrs[NL80211_ATTR_IFNAME]) << "\n";
+    auto *results = static_cast<TriggerScanResult *>(arg);
+    auto cmd = gen_hdr.value()->cmd;
+    auto cmd_str = ws::get_nl80211_cmd(static_cast<nl80211_commands>(cmd));
+    std::cout << std::format("Got command: {}.\n", cmd_str);
+
+    results->update(cmd);
+
+    // Parse attributes
+    // auto tp = wp::parse_attribs(gen_hdr.value());
+    // if (!tp) {
+    //     std::cerr << "failed to parse attributes: " << tp.error() << "\n";
+    //     return NL_SKIP;
     // }
+    // auto attrs = tp.value();
+    //
+    // if (attrs[NL80211_ATTR_IFINDEX] != nullptr) {
+    //     auto ifindex = nla_get_u32(attrs[NL80211_ATTR_IFINDEX]);
+    //     std::cout << "Interface index: " << ifindex << "\n";
+    // }
+
+    return NL_SKIP;
+}
+
+int get_scan_handler(nl_msg *msg, [[maybe_unused]] void *arg) {
+
+    auto gen_hdr = wp::parse_genlmsghdr(msg);
+
+    if (!gen_hdr) {
+        std::cerr << "failed to create GenNlMsgHeader: " << gen_hdr.error() << "\n";
+        return NL_SKIP;
+    }
+    
+    auto tp = wp::parse_attribs(gen_hdr.value());
+
+    if (!tp) {
+        std::cerr << "failed to parse attributes: " << tp.error() << "\n";
+        return NL_SKIP;
+    }
+
+    auto bss = wp::parse_bss_attribs(tp.value());
+
+    if (!bss) {
+        std::cerr << "failed to parse BSS attributes: " << bss.error() << "\n";
+        return NL_SKIP;
+    }
+
+    const wp::BssParser bss_parser{bss.value()};
+    auto mac_addr = bss_parser.mac_addr();
+    auto freq = bss_parser.freq();
+    auto ssid = bss_parser.ssid();
+
+    std::cout << (mac_addr ? mac_addr.value() : "???") << ", ";
+    std::cout << (freq ? std::to_string(freq.value()) : "???") << " MHz, ";
+    std::cout << "\"" << (ssid ? ssid.value() : "???") << "\"";
+    std::cout << "\n";
+
+    if (!mac_addr) {
+        std::cerr << "failed to get mac address: " << mac_addr.error() << "\n";
+    }
+    if (!freq) {
+        std::cerr << "failed to get frequency: " << freq.error() << "\n";
+    }
+    if (!ssid) {
+        std::cerr << "failed to get SSID: " << ssid.error() << "\n";
+    }
 
     return NL_SKIP;
 }

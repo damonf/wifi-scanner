@@ -10,3 +10,6 @@ target_sources(wifi-scanner-lib
   )
 
 target_include_directories(wifi-scanner-lib PUBLIC ${CMAKE_CURRENT_LIST_DIR})
+
+add_subdirectory(parsers)
+add_subdirectory(utils)

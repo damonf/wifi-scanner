@@ -18,6 +18,13 @@ public:
     NLError(const char* err) : error(err) {
     }
 
+    const std::string& str() {
+        return error;
+    }
+    const char* c_str() {
+        return error.c_str();
+    }
+
     operator const std::string&() const {
         return error;
     }

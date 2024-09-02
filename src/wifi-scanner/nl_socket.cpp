@@ -76,12 +76,13 @@ std::expected<void, NLError> NLSocket::modify_err_cb(nl_cb_kind kind, nl_recvmsg
     return {};
 }
 
-std::expected<void, NLError> NLSocket::send_auto(const NLMessage& msg) const {
+std::expected<int, NLError> NLSocket::send_auto(const NLMessage& msg) const {
+    // https://www.infradead.org/~tgr/libnl/doc/api/group__send__recv.html#ga4ed435bdbaa2545641909ac9c39c48b0
     auto res = nl_send_auto(sock_.get(), msg.get());
     if (res < 0) {
         return std::unexpected{res};
     }
-    return {};
+    return res;
 }
 
 std::expected<void, NLError> NLSocket::recvmsgs_default() const {

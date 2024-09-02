@@ -25,7 +25,7 @@ public:
     [[nodiscard]] std::expected<void, NLError> drop_membership(int group);
     [[nodiscard]] std::expected<void, NLError> modify_cb(nl_cb_type type, nl_cb_kind kind, nl_recvmsg_msg_cb_t func, void *arg);
     [[nodiscard]] std::expected<void, NLError> modify_err_cb(nl_cb_kind kind, nl_recvmsg_err_cb_t func, void *arg);
-    [[nodiscard]] std::expected<void, NLError> send_auto(const NLMessage& msg) const;
+    [[nodiscard]] std::expected<int, NLError> send_auto(const NLMessage& msg) const;
     [[nodiscard]] std::expected<void, NLError> recvmsgs_default() const;
     void disable_seq_check() const;
 
