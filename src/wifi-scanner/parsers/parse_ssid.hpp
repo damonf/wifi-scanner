@@ -9,8 +9,7 @@
 namespace wifi_scanner::parsers {
 
 std::expected<std::string_view, std::string> parse_ssid(
-    const unsigned char *bss_info_elems
-    , int bss_info_elems_len
+    std::span<const unsigned char> bss_info_elems
     , std::span<char> buffer
 );
 

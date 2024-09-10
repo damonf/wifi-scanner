@@ -1,6 +1,5 @@
-#include "bss_parser.hpp"
+#include "bss_parsers.hpp"
 #include "mac_to_str.hpp"
-#include "parse_ssid.hpp"
 
 #include <linux/netlink.h>
 #include <linux/nl80211.h>
@@ -11,19 +10,14 @@
 #include <vector>
 #include <expected>
 #include <cstdint>
+#include <span>
+#include <string_view>
 
 namespace wifi_scanner::parsers {
 
-BssParser::BssParser(const std::vector<nlattr*>& bss) {
+using cbyte_span = std::span<const unsigned char>;
 
-    std::string buff(128, '\0');
-
-    mac_addr_ = extract_mac_addr(bss, buff);
-    freq_ = extract_freq(bss);
-    ssid_ = extract_ssid(bss, buff);
-}
-
-std::expected<std::string, std::string> BssParser::extract_mac_addr(
+std::expected<std::string_view, std::string> parse_mac_addr(
         const std::vector<nlattr*>& bss
         , std::string& buff
     ) {
@@ -36,23 +30,20 @@ std::expected<std::string, std::string> BssParser::extract_mac_addr(
 
     void *data = nla_data(attr);
 
-    auto mac_str = utils::mac_to_str(
+    return utils::mac_to_str(
         static_cast<unsigned char*>(data)
         , nla_len(attr)
         , buff
-    );
-
-    if (!mac_str) {
+    )
+    .or_else([](const std::string& err) -> std::expected<std::string_view, std::string> {
         return std::unexpected{
             std::format("failed to convert mac address to string: {}\n"
-            , mac_str.error())
+            , err)
         };
-    }
-
-    return std::string{mac_str.value()};
+    });
 }
 
-std::expected<uint32_t, std::string> BssParser::extract_freq(
+std::expected<uint32_t, std::string> parse_freq(
         const std::vector<nlattr*>& bss
     ) {
 
@@ -65,9 +56,8 @@ std::expected<uint32_t, std::string> BssParser::extract_freq(
     return std::unexpected{"frequency not present"};
 }
 
-std::expected<std::string, std::string> BssParser::extract_ssid(
+std::expected<cbyte_span, std::string> parse_bss_info_elems(
         const std::vector<nlattr*>& bss
-        , std::string& buff
     ) {
 
     nlattr* attr = bss[NL80211_BSS_INFORMATION_ELEMENTS];
@@ -78,20 +68,10 @@ std::expected<std::string, std::string> BssParser::extract_ssid(
 
     void *data = nla_data(attr);
 
-    auto ssid = parse_ssid(
-        static_cast<unsigned char*>(data)
+    return cbyte_span(
+        static_cast<const unsigned char*>(data)
         , nla_len(attr)
-        , buff
     );
-
-    if (!ssid) {
-        return std::unexpected{
-            std::format("failed to convert ssid to string: {}\n"
-            , ssid.error())
-        };
-    }
-
-    return std::string{ssid.value()};
 }
 
 }

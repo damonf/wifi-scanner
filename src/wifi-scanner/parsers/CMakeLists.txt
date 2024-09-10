@@ -4,8 +4,8 @@ target_sources(wifi-scanner-lib
     nl_msg_parsers.cpp
     parse_ssid.hpp
     parse_ssid.cpp
-    bss_parser.hpp
-    bss_parser.cpp
+    bss_parsers.hpp
+    bss_parsers.cpp
 )
 
 target_include_directories(wifi-scanner-lib PUBLIC ${CMAKE_CURRENT_LIST_DIR})

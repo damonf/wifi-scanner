@@ -22,7 +22,7 @@ NLSocket::NLSocket()
         throw std::runtime_error("failed to allocate netlink socket");
     }
 
-	  auto res = genl_connect(sock_.get());
+    auto res = genl_connect(sock_.get());
     if (res != 0) {
         throw std::runtime_error("failed to connect to generic netlink");
     }
@@ -68,8 +68,24 @@ std::expected<void, NLError> NLSocket::modify_cb(nl_cb_type type, nl_cb_kind kin
     return {};
 }
 
+std::expected<void, NLError> NLSocket::clear_cb(nl_cb_type type, nl_cb_kind kind) {
+    auto res = nl_socket_modify_cb(sock_.get(), type, kind, nullptr, nullptr);
+    if (res < 0) {
+        return std::unexpected{res};
+    }
+    return {};
+}
+
 std::expected<void, NLError> NLSocket::modify_err_cb(nl_cb_kind kind, nl_recvmsg_err_cb_t func, void *arg) {
     auto res = nl_socket_modify_err_cb(sock_.get(), kind, func, arg);
+    if (res < 0) {
+        return std::unexpected{res};
+    }
+    return {};
+}
+
+std::expected<void, NLError> NLSocket::clear_err_cb(nl_cb_kind kind) {
+    auto res = nl_socket_modify_err_cb(sock_.get(), kind, nullptr, nullptr);
     if (res < 0) {
         return std::unexpected{res};
     }

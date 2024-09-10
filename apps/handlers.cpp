@@ -1,7 +1,8 @@
 #include "handlers.hpp"
 #include "get_nl80211_cmd.hpp"
 #include "nl_msg_parsers.hpp"
-#include "bss_parser.hpp"
+#include "bss_parsers.hpp"
+#include "parse_ssid.hpp"
 
 #include <linux/genetlink.h>
 #include <linux/netlink.h>
@@ -13,6 +14,7 @@
 #include <iostream>
 #include <format>
 #include <string>
+#include <expected>
 
 namespace { 
 
@@ -21,36 +23,28 @@ namespace {
 
 }
 
-int error_handler(sockaddr_nl * /*nla*/, nlmsgerr *err, void *arg) {
-    std::cout << "error_handler() called.\n";
-    int *ret = static_cast<int*>(arg);
-    *ret = err->error;
+int error_handler(sockaddr_nl * /*nla*/, nlmsgerr *err, void * /*arg*/) {
+    std::cout << "error_handler() called: " << err->error << "\n";
     return NL_STOP;
 }
 
-int finish_handler(nl_msg * /*msg*/, void *arg) {
+int finish_handler(nl_msg * /*msg*/, void * /*arg*/) {
     std::cout << "finish_handler() called.\n";
-    int *ret = static_cast<int*>(arg);
-    *ret = 0;
     return NL_SKIP;
 }
 
-
-int ack_handler(nl_msg * /*msg*/, void *arg) {
+int ack_handler(nl_msg * /*msg*/, void * /*arg*/) {
     std::cout << "ack_handler() called.\n";
-    auto *ret = static_cast<int*>(arg);
-    *ret = 0;
     return NL_STOP;
 }
 
-
 int seq_handler(nl_msg *msg, void * /*arg*/) {
+    std::cout << "seq_handler() called.";
     nlmsghdr *nlh = nlmsg_hdr(msg);
     if (nlh != nullptr) {
-        std::cout << "seq_handler() called. Sequence number: " << nlh->nlmsg_seq << "\n";
-    } else {
-        std::cout << "seq_handler() called. Failed to get message header.\n";
+        std::cout << " Sequence number: " << nlh->nlmsg_seq;
     }
+    std::cout << "\n";
     return NL_OK;
 }
 
@@ -89,46 +83,54 @@ int trigger_scan_handler(nl_msg *msg, void *arg) {
 
 int get_scan_handler(nl_msg *msg, [[maybe_unused]] void *arg) {
 
-    auto gen_hdr = wp::parse_genlmsghdr(msg);
+    auto res = wp::parse_genlmsghdr(msg)
+        .and_then(wp::parse_attribs)
+        .and_then(wp::parse_bss_attribs)
+        .and_then([](auto bss) {
 
-    if (!gen_hdr) {
-        std::cerr << "failed to create GenNlMsgHeader: " << gen_hdr.error() << "\n";
-        return NL_SKIP;
-    }
-    
-    auto tp = wp::parse_attribs(gen_hdr.value());
+            std::string buff(128, '\0');
 
-    if (!tp) {
-        std::cerr << "failed to parse attributes: " << tp.error() << "\n";
-        return NL_SKIP;
-    }
+            auto mac_addr = wp::parse_mac_addr(bss, buff);
 
-    auto bss = wp::parse_bss_attribs(tp.value());
+            if (mac_addr) {
+                std::cout << mac_addr.value() << ", ";
+            }
+            else {
+                std::cerr << "failed to get mac address: " << mac_addr.error() << "\n";
+            }
 
-    if (!bss) {
-        std::cerr << "failed to parse BSS attributes: " << bss.error() << "\n";
-        return NL_SKIP;
-    }
+            auto freq = wp::parse_freq(bss);
 
-    const wp::BssParser bss_parser{bss.value()};
-    auto mac_addr = bss_parser.mac_addr();
-    auto freq = bss_parser.freq();
-    auto ssid = bss_parser.ssid();
+            if (freq) {
+                std::cout << std::to_string(freq.value()) << " MHz, ";
+            }
+            else {
+                std::cerr << "failed to get frequency: " << freq.error() << "\n";
+            }
 
-    std::cout << (mac_addr ? mac_addr.value() : "???") << ", ";
-    std::cout << (freq ? std::to_string(freq.value()) : "???") << " MHz, ";
-    std::cout << "\"" << (ssid ? ssid.value() : "???") << "\"";
-    std::cout << "\n";
+            auto elems = wp::parse_bss_info_elems(bss);
 
-    if (!mac_addr) {
-        std::cerr << "failed to get mac address: " << mac_addr.error() << "\n";
-    }
-    if (!freq) {
-        std::cerr << "failed to get frequency: " << freq.error() << "\n";
-    }
-    if (!ssid) {
-        std::cerr << "failed to get SSID: " << ssid.error() << "\n";
-    }
+            if (elems) {
+                auto ssid = wp::parse_ssid(elems.value(), buff);
+                
+                if (ssid) {
+                    std::cout << "\"" << ssid.value() << "\"";
+                }
+                else {
+                    std::cerr << "failed to get SSID: " << ssid.error() << "\n";
+                }
+            }
+            else {
+                std::cerr << "failed to get bss info elems: " << elems.error() << "\n";
+            }
+
+            std::cout << "\n";
+            return std::expected<void, std::string>{};
+        })
+        .or_else([](const std::string& err) {
+            std::cerr << "failed to parse scan result: " << err << "\n";
+            return std::expected<void, std::string>{};
+        });
 
     return NL_SKIP;
 }

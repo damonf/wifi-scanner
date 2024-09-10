@@ -21,9 +21,42 @@ namespace {
     const constinit size_t SSID_BUF_MIN = SSID_MAX_LEN * 4L;
 
     using namespace wifi_scanner::utils;
-    using byte_span = std::span<const unsigned char>;
+    using cbyte_span = std::span<const unsigned char>;
 
-    bool is_valid_ssid(byte_span field) {
+    class IeIterator {
+    public:
+        IeIterator(cbyte_span fields) : fields_{fields}
+        {
+        }
+    
+        std::optional<cbyte_span> next() {
+    
+            if ((idx_ + 1) >= fields_.size()) {
+                return {};
+            }
+    
+            if (idx_ + IE_HEADER_LEN + fields_[idx_ + 1]
+                <= fields_.size()) {
+    
+                auto field = fields_.subspan(
+                    idx_
+                    , IE_HEADER_LEN + fields_[idx_ + 1]
+                );
+    
+                idx_ += IE_HEADER_LEN + fields_[idx_ + 1];
+    
+                return field;
+            }
+    
+            return {};
+        }
+
+    private:
+        cbyte_span fields_;
+        size_t idx_{};
+    };
+
+    bool is_valid_ssid(const cbyte_span field) {
     
         const auto len = field[1];
 
@@ -32,12 +65,12 @@ namespace {
         }
 
         if (len + IE_HEADER_LEN > field.size()) {
-            std::cout << "SSID length exceeds the field length: " << len << std::endl;
+            std::cerr << "SSID length exceeds the field length: " << len << std::endl;
             return false;
         }
 
         if (len > SSID_MAX_LEN) {
-            std::cout << "SSID too long: " << len << std::endl;
+            std::cerr << "SSID too long: " << len << std::endl;
             return false;
         }
 
@@ -45,7 +78,7 @@ namespace {
     }
     
     std::expected<std::string_view, std::string> extract_ssid(
-        const byte_span field
+        const cbyte_span field
         , std::span<char> buffer
     ) {
         const auto ssid_len = field[1];
@@ -81,22 +114,10 @@ namespace {
         return std::string_view{buffer.data(), i};
     }
 
-    std::optional<byte_span> next_field(
-        byte_span fields
-        , size_t idx
-    ) {
-        if (idx + IE_HEADER_LEN + fields[idx + 1] <= fields.size()) {
-            return fields.subspan(idx, IE_HEADER_LEN + fields[idx + 1]);
-        }
-    
-        return {};
-    }
-
 }
 
 std::expected<std::string_view, std::string> parse_ssid(
-    const unsigned char *bss_info_elems
-    , int bss_info_elems_len
+    const cbyte_span bss_info_elems
     , std::span<char> buffer
 ) {
     // bss_info_elems: basic service set information elements
@@ -108,18 +129,12 @@ std::expected<std::string_view, std::string> parse_ssid(
         return std::unexpected{"buffer too small"};
     }
 
-    const auto fields = byte_span(
-        bss_info_elems
-        , bss_info_elems_len
-    );
+    IeIterator it{bss_info_elems};
 
-    size_t idx = 0;
-
-    while (auto field = next_field(fields, idx)) {
+    while (auto field = it.next()) {
         if (is_valid_ssid(*field)) {
             return extract_ssid(*field, buffer);
         }
-        idx += IE_HEADER_LEN + (*field)[1];
     }
 
     return std::unexpected{"no valid SSID found"};

@@ -19,14 +19,12 @@ namespace wifi_scanner::parsers {
 std::expected<genlmsghdr*, std::string> parse_genlmsghdr(nl_msg *msg) {
 
     if (msg == nullptr) {
-        return std::unexpected{"null message"};
+        return std::unexpected{"ml_msg is null"};
     }
 
     // https://www.infradead.org/~tgr/libnl/doc/api/group__msg.html#gae44a904bb40c8b5f5ff31539c21cfa5a
     void *res = nlmsg_data(nlmsg_hdr(msg));
-    auto *gnlh = static_cast<genlmsghdr *>(res);
-
-    return gnlh;
+    return static_cast<genlmsghdr *>(res);
 }
 
 std::expected<std::vector<nlattr*>, std::string> parse_attribs(genlmsghdr *gnlh) {
@@ -59,18 +57,23 @@ std::expected<std::vector<nlattr*>, std::string> parse_bss_attribs(const std::ve
     // Missing Attributes: The corresponding entries in the parsed attribute array will be NULL. You must handle these cases in your code.
     // Extra Attributes: These will be ignored and will not affect the parsing of defined attributes.
     // https://www.infradead.org/~tgr/libnl/doc/core.html#core_attr_parse
-    static constinit std::array<nla_policy, NL80211_BSS_MAX + 1> bss_policy{};
-    bss_policy[NL80211_BSS_TSF]                  = nla_policy{NLA_U64, 0, 0};
-    bss_policy[NL80211_BSS_TSF]                  = nla_policy{NLA_U32, 0, 0};
-    bss_policy[NL80211_BSS_BSSID]                = nla_policy{};
-    bss_policy[NL80211_BSS_BEACON_INTERVAL]      = nla_policy{NLA_U16, 0, 0};
-    bss_policy[NL80211_BSS_CAPABILITY]           = nla_policy{NLA_U16, 0, 0};
-    bss_policy[NL80211_BSS_INFORMATION_ELEMENTS] = nla_policy{};
-    bss_policy[NL80211_BSS_SIGNAL_MBM]           = nla_policy{NLA_U32, 0, 0};
-    bss_policy[NL80211_BSS_SIGNAL_UNSPEC]        = nla_policy{NLA_U8, 0, 0};
-    bss_policy[NL80211_BSS_STATUS]               = nla_policy{NLA_U32, 0, 0};
-    bss_policy[NL80211_BSS_SEEN_MS_AGO]          = nla_policy{NLA_U32, 0, 0};
-    bss_policy[NL80211_BSS_BEACON_IES]           = nla_policy{};
+    const static constinit std::array<nla_policy, NL80211_BSS_MAX + 1> bss_policy = [] {
+
+        std::array<nla_policy, NL80211_BSS_MAX + 1> res{};
+        res[NL80211_BSS_TSF]                  = nla_policy{NLA_U64, 0, 0};
+        res[NL80211_BSS_TSF]                  = nla_policy{NLA_U32, 0, 0};
+        res[NL80211_BSS_BSSID]                = nla_policy{};
+        res[NL80211_BSS_BEACON_INTERVAL]      = nla_policy{NLA_U16, 0, 0};
+        res[NL80211_BSS_CAPABILITY]           = nla_policy{NLA_U16, 0, 0};
+        res[NL80211_BSS_INFORMATION_ELEMENTS] = nla_policy{};
+        res[NL80211_BSS_SIGNAL_MBM]           = nla_policy{NLA_U32, 0, 0};
+        res[NL80211_BSS_SIGNAL_UNSPEC]        = nla_policy{NLA_U8, 0, 0};
+        res[NL80211_BSS_STATUS]               = nla_policy{NLA_U32, 0, 0};
+        res[NL80211_BSS_SEEN_MS_AGO]          = nla_policy{NLA_U32, 0, 0};
+        res[NL80211_BSS_BEACON_IES]           = nla_policy{};
+
+        return res;
+    }();
 
     std::vector<nlattr*> bss{NL80211_BSS_MAX + 1};
 
@@ -83,7 +86,7 @@ std::expected<std::vector<nlattr*>, std::string> parse_bss_attribs(const std::ve
         );
 
     if (err != 0) {
-        return std::unexpected{std::format("Failed to parse nested attributes: {}", nl_geterror(err))};
+        return std::unexpected{std::format("Failed to parse bss attributes: {}", nl_geterror(err))};
     }
 
     return bss;

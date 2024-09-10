@@ -32,8 +32,8 @@ std::string get_error(int errnum) {
     return msg;
 }
 
-std::expected<void, std::string> set_callbacks(ws::NLSocket& ucsk, int& err);
-std::expected<void, std::string> trigger_scan(ws::NLSocket& ucsk, int fam, unsigned int if_index, int& err);
+std::expected<void, std::string> set_callbacks(ws::NLSocket& ucsk);
+std::expected<void, std::string> trigger_scan(ws::NLSocket& ucsk, int fam, unsigned int if_index);
 std::expected<void, std::string> get_scan_results(ws::NLSocket& ucsk, int fam, unsigned int if_index);
 void clear_callbacks(ws::NLSocket& ucsk);
 
@@ -59,14 +59,13 @@ int main(int  argc, const char *argv[]) {
         return EXIT_FAILURE;
     }
 
-    int err = 1;
-    auto res = set_callbacks(ucsk, err);
+    auto res = set_callbacks(ucsk);
     if (!res) {
         std::cerr << "failed to set callbacks: " << res.error() << '\n';
         return EXIT_FAILURE;
     }
 
-    res = trigger_scan(ucsk, fam.value(), if_index, err);
+    res = trigger_scan(ucsk, fam.value(), if_index);
     if (!res) {
         std::cerr << "failed to trigger scan: " << res.error() << '\n';
         return EXIT_FAILURE;
@@ -83,13 +82,13 @@ int main(int  argc, const char *argv[]) {
     return EXIT_SUCCESS;
 }
 
-std::expected<void, std::string> set_callbacks(ws::NLSocket& ucsk, int& err) {
+std::expected<void, std::string> set_callbacks(ws::NLSocket& ucsk) {
 
     auto res = ucsk.modify_cb(
         NL_CB_ACK 
         , NL_CB_CUSTOM
         , ack_handler
-        , &err
+        , nullptr
     );
     if (!res) {
         return std::unexpected{std::format("modify ack callback failed: {}", res.error().str())};
@@ -99,7 +98,7 @@ std::expected<void, std::string> set_callbacks(ws::NLSocket& ucsk, int& err) {
         NL_CB_SEQ_CHECK 
         , NL_CB_CUSTOM
         , seq_handler
-        , &err
+        , nullptr
     );
     if (!res) {
         return std::unexpected{std::format("modify seq check callback failed: {}", res.error().str())};
@@ -109,7 +108,7 @@ std::expected<void, std::string> set_callbacks(ws::NLSocket& ucsk, int& err) {
         NL_CB_FINISH 
         , NL_CB_CUSTOM
         , finish_handler
-        , &err
+        , nullptr
     );
     if (!res) {
         return std::unexpected{std::format("modify finish callback failed: {}", res.error().str())};
@@ -118,7 +117,7 @@ std::expected<void, std::string> set_callbacks(ws::NLSocket& ucsk, int& err) {
     res = ucsk.modify_err_cb(
         NL_CB_CUSTOM
         , error_handler
-        , &err
+        , nullptr
     );
     if (!res) {
         return std::unexpected{std::format("modify error callback failed: {}", res.error().str())};
@@ -127,7 +126,7 @@ std::expected<void, std::string> set_callbacks(ws::NLSocket& ucsk, int& err) {
     return {};
 }
 
-std::expected<void, std::string> trigger_scan(ws::NLSocket& ucsk, int fam, unsigned int if_index, int& err) {
+std::expected<void, std::string> trigger_scan(ws::NLSocket& ucsk, int fam, unsigned int if_index) {
 
     auto mcgrp = ucsk.resolve_group("nl80211", "scan");
     if (!mcgrp) {
@@ -183,12 +182,6 @@ std::expected<void, std::string> trigger_scan(ws::NLSocket& ucsk, int fam, unsig
     res = ucsk.recvmsgs_default();
     if (!res) {
         return std::unexpected(std::format("unicast socket recvmsgs_default failed: {}", res.error().str()));
-    }
-
-    if (err < 0) {
-        std::cerr << "error occurred: " << err << '\n';
-        err = 1;
-        // TODO: exit now?
     }
 
     while (!results.is_done()) {
@@ -252,8 +245,8 @@ std::expected<void, std::string> get_scan_results(ws::NLSocket& ucsk, int fam, u
 }
 
 void clear_callbacks(ws::NLSocket& ucsk) {
-    auto res = ucsk.modify_cb(NL_CB_ACK, NL_CB_CUSTOM, nullptr, nullptr);
-    res = ucsk.modify_cb(NL_CB_SEQ_CHECK, NL_CB_CUSTOM, nullptr, nullptr);
-    res = ucsk.modify_cb(NL_CB_FINISH, NL_CB_CUSTOM, nullptr, nullptr);
-    res = ucsk.modify_err_cb(NL_CB_CUSTOM, nullptr, nullptr);
+    auto res = ucsk.clear_cb(NL_CB_ACK, NL_CB_CUSTOM);
+    res = ucsk.clear_cb(NL_CB_SEQ_CHECK, NL_CB_CUSTOM);
+    res = ucsk.clear_cb(NL_CB_FINISH, NL_CB_CUSTOM);
+    res = ucsk.clear_err_cb(NL_CB_CUSTOM);
 }

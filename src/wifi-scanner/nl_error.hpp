@@ -18,10 +18,10 @@ public:
     NLError(const char* err) : error(err) {
     }
 
-    const std::string& str() {
+    [[nodiscard]] const std::string& str() const {
         return error;
     }
-    const char* c_str() {
+    [[nodiscard]] const char* c_str() const {
         return error.c_str();
     }
 

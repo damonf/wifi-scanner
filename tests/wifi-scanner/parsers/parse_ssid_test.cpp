@@ -6,6 +6,7 @@
 #include <array>
 #include <algorithm>
 #include <string>
+#include <span>
 
 #include <cstddef>
 
@@ -34,14 +35,16 @@ TEST_CASE("parse ssid test", "[parse_ssid]") {
         // Copy the SSID string into the remaining bytes of the array
         std::copy(ssid.begin(), ssid.end(), bss_info_elems.begin() + ie_header_len);
 
-        const unsigned char * const ie_ptr = bss_info_elems.data();
-
         // dest buffer
         std::array<char, BUFFER_SIZE> buffer{};
 
-        auto res = wp::parse_ssid(
-            ie_ptr
+        const auto bss_info_elems_span = std::span<unsigned char>(
+            bss_info_elems.data() 
             , bss_info_elems.size()
+        );
+
+        auto res = wp::parse_ssid(
+            bss_info_elems_span 
             , buffer
         );
 
@@ -77,13 +80,15 @@ TEST_CASE("parse ssid test", "[parse_ssid]") {
         // Copy the SSID string into the remaining bytes of the array
         std::copy(ssid.begin(), ssid.end(), bss_info_elems.begin() + first_field_len + ie_header_len);
 
-        const unsigned char * const ie_ptr = bss_info_elems.data();
-
         std::array<char, BUFFER_SIZE> buffer{};
 
-        auto res = wp::parse_ssid(
-            ie_ptr
+        const auto bss_info_elems_span = std::span<unsigned char>(
+            bss_info_elems.data() 
             , bss_info_elems.size()
+        );
+
+        auto res = wp::parse_ssid(
+            bss_info_elems_span
             , buffer
         );
 
@@ -111,14 +116,16 @@ TEST_CASE("parse ssid test", "[parse_ssid]") {
         // Copy the SSID string into the remaining bytes of the array
         std::copy(ssid.begin(), ssid.end(), bss_info_elems.begin() + ie_header_len);
 
-        const unsigned char * const ie_ptr = bss_info_elems.data();
-
         // dest buffer is too small
         std::array<char, 1> buffer{};
 
-        auto res = wp::parse_ssid(
-            ie_ptr
+        const auto bss_info_elems_span = std::span<unsigned char>(
+            bss_info_elems.data() 
             , bss_info_elems.size()
+        );
+
+        auto res = wp::parse_ssid(
+            bss_info_elems_span
             , buffer
         );
 
@@ -131,13 +138,15 @@ TEST_CASE("parse ssid test", "[parse_ssid]") {
         // too small to contain any fields
         std::array<unsigned char, 1> bss_info_elems = {};
 
-        const unsigned char * const ie_ptr = bss_info_elems.data();
-
         std::array<char, BUFFER_SIZE> buffer{};
 
-        auto res = wp::parse_ssid(
-            ie_ptr
+        const auto bss_info_elems_span = std::span<unsigned char>(
+            bss_info_elems.data() 
             , bss_info_elems.size()
+        );
+
+        auto res = wp::parse_ssid(
+            bss_info_elems_span
             , buffer
         );
 
@@ -156,13 +165,15 @@ TEST_CASE("parse ssid test", "[parse_ssid]") {
         // Second byte set to the length of the remaining bytes
         bss_info_elems[1] = 5;
 
-        const unsigned char * const ie_ptr = bss_info_elems.data();
-
         std::array<char, BUFFER_SIZE> buffer{};
 
-        auto res = wp::parse_ssid(
-            ie_ptr
+        const auto bss_info_elems_span = std::span<unsigned char>(
+            bss_info_elems.data() 
             , bss_info_elems.size()
+        );
+
+        auto res = wp::parse_ssid(
+            bss_info_elems_span
             , buffer
         );
 
